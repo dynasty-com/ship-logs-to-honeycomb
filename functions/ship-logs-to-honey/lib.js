@@ -80,44 +80,45 @@ const extractLogEvents = event => {
 };
 
 const correlateApiGatewayTraces = event => {
-  let traceId = event.requestId;
+  return event;
+  // let traceId = event.requestId;
 
-  if (event.request_correlation_ids["x-correlation-id"]) {
-    traceId = event.request_correlation_ids["x-correlation-id"];
-  }
+  // if (event.request_correlation_ids["x-correlation-id"]) {
+  //   traceId = event.request_correlation_ids["x-correlation-id"];
+  // }
 
-  let parentSpanId;
-  let spanId;
+  // let parentSpanId;
+  // let spanId;
 
-  if (event.request_correlation_ids["x-correlation-span-id"]) {
-    spanId = event.request_correlation_ids["x-correlation-span-id"];
+  // if (event.request_correlation_ids["x-correlation-span-id"]) {
+  //   spanId = event.request_correlation_ids["x-correlation-span-id"];
 
-    if (spanId.includes("-span")) {
-      const possibleParentSpanId = spanId.substring(0, spanId.indexOf("-span"));
+  //   if (spanId.includes("-span")) {
+  //     const possibleParentSpanId = spanId.substring(0, spanId.indexOf("-span"));
 
-      if (possibleParentSpanId !== traceId) {
-        parentSpanId = possibleParentSpanId;
-      }
-    }
-  }
+  //     if (possibleParentSpanId !== traceId) {
+  //       parentSpanId = possibleParentSpanId;
+  //     }
+  //   }
+  // }
 
-  const traceData = {
-    "trace.trace_id": traceId,
-    "trace.span_id": spanId,
-    "trace.parent_id": parentSpanId
-  };
+  // const traceData = {
+  //   "trace.trace_id": traceId,
+  //   "trace.span_id": spanId,
+  //   "trace.parent_id": parentSpanId
+  // };
 
-  const additionalFields = {};
+  // const additionalFields = {};
 
-  if (event.http_method && event.http_resource_path) {
-    additionalFields.name = `${event.http_method} ${event.http_resource_path}`;
-  }
+  // if (event.http_method && event.http_resource_path) {
+  //   additionalFields.name = `${event.http_method} ${event.http_resource_path}`;
+  // }
 
-  return {
-    ...event,
-    ...traceData,
-    ...additionalFields
-  };
+  // return {
+  //   ...event,
+  //   ...traceData,
+  //   ...additionalFields
+  // };
 };
 
 const generateApiGatewayEvent = event => {
@@ -174,7 +175,7 @@ const generateApiGatewayEvent = event => {
   const debugLogEnabledFromHeaders =
     method_response_headers["Debug-Log-Enabled"] === "true";
 
-  const debugLogEnabledFromMethodStatus = method_status >= 400;
+  const debugLogEnabledFromMethodStatus = true;
 
   // If debug logging is not enabled, then don't log this event
   // Also, make sure to log any non-successful responses
@@ -193,8 +194,10 @@ const generateApiGatewayEvent = event => {
   mappedHeaders.user_agent = method_request_headers["User-Agent"];
   mappedHeaders.host = method_request_headers["Host"];
   mappedHeaders.accept = method_request_headers["Accept"];
+  mappedHeaders.request_content_type = method_request_headers["Content-Type"] || method_request_headers["content-type"];
 
-  mappedHeaders.content_type = endpoint_response_headers["Content-Type"];
+  mappedHeaders.response_content_type = endpoint_response_headers["Content-Type"] || endpoint_response_headers["content-type"];
+  mappedHeaders.response_content_disp = endpoint_response_headers["Content-Disposition"] || endpoint_response_headers["content-disposition"];
   mappedHeaders.content_length = endpoint_response_headers["Content-Length"];
   mappedHeaders.version = endpoint_response_headers["X-Amz-Executed-Version"];
 
@@ -214,9 +217,9 @@ const generateApiGatewayEvent = event => {
 
   const result = {
     service_name: "APIGateway",
-    level: "TRACE",
     api_stage,
     api,
+    query: event["request_query_string"],
     stage,
     duration_ms: event["request-execution-duration"],
     timestamp: event["@timestamp"],
@@ -226,8 +229,12 @@ const generateApiGatewayEvent = event => {
     integration_latency: integration_latency,
     execution_failure: event.execution_failure,
     request_correlation_ids,
+    request_body: event["method_request_body"],
+    response_body: event["endpoint_response_body"],
     ...mappedHeaders
   };
+
+  result["trace.trace_id"] = endpoint_response_headers["X-TraceID"] || endpoint_response_headers["x-traceid"];
 
   return result;
 };
